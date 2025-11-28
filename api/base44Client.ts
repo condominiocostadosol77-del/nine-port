@@ -1,13 +1,12 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURAÇÃO DO BANCO DE DADOS (SUPABASE) ---
-// Para sincronizar entre dispositivos, crie um projeto em https://supabase.com
-// e cole sua URL e CHAVE PÚBLICA (ANON KEY) abaixo.
-// Se deixar vazio, o sistema continuará salvando apenas no navegador deste dispositivo.
-const SUPABASE_URL = ''; 
-const SUPABASE_KEY = '';
+// Conectado ao projeto 'nineport'
+const SUPABASE_URL = 'https://ubvqtnlpsvmfgfxpgour.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVidnF0bmxwc3ZtZmdmeHBnb3VyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMTI2NTEsImV4cCI6MjA3OTg4ODY1MX0.b_vA6lgOnNXcILUOOV-dWiV7OL6VLMhPLx3mmHFsju0';
 
-const USE_CLOUD = SUPABASE_URL.length > 10 && SUPABASE_KEY.length > 10;
+const USE_CLOUD = SUPABASE_URL.startsWith('http') && SUPABASE_KEY.length > 20;
 
 let supabase: any = null;
 if (USE_CLOUD) {
@@ -37,9 +36,9 @@ class CloudEntityClient {
     if (sort) {
       const desc = sort.startsWith('-');
       const key = desc ? sort.substring(1) : sort;
-      // Mapeamento simples de campos de data caso o nome no banco seja diferente,
-      // mas vamos assumir que o banco segue a estrutura do JSON
-      query = query.order(key === 'created_date' ? 'created_at' : key, { ascending: !desc });
+      // Mapeamento simples para ordenação
+      const orderKey = key === 'created_date' ? 'created_at' : key;
+      query = query.order(orderKey, { ascending: !desc });
     } else {
       query = query.order('created_at', { ascending: false });
     }
@@ -51,10 +50,11 @@ class CloudEntityClient {
     const { data, error } = await query;
     if (error) {
       console.error(`Erro ao listar ${this.table}:`, error);
-      throw error;
+      // Se a tabela não existir, retorna vazio para não quebrar a UI
+      return [];
     }
     
-    // Normalizar ID se necessário (Supabase usa id numérico ou uuid, app usa string)
+    // Normalizar ID e data para o formato esperado pelo frontend
     return data.map((d: any) => ({ ...d, id: d.id.toString(), created_date: d.created_at }));
   }
 
@@ -68,17 +68,16 @@ class CloudEntityClient {
     const payload = {
       ...data,
       registrado_por: currentUser ? currentUser.nome : 'Sistema',
-      // Supabase gerencia created_at e id automaticamente se configurado,
-      // mas enviamos dados extras como JSONB se a coluna não existir explicitamente
     };
 
-    // Tentar inserir. Nota: As tabelas precisam existir no Supabase.
-    // Se não existirem, este método falhará.
     const { data: created, error } = await supabase.from(this.table).insert(payload).select().single();
     
     if (error) {
       console.error(`Erro ao criar em ${this.table}:`, error);
-      // Fallback silencioso ou erro? Vamos lançar erro para feedback.
+      // Fallback silencioso ou alerta
+      if (error.code === '42P01') { // undefined_table
+         alert(`Erro: A tabela '${this.table}' não existe no banco de dados. Execute o script SQL no Supabase.`);
+      }
       throw error;
     }
     return { ...created, id: created.id.toString(), created_date: created.created_at };
@@ -86,7 +85,10 @@ class CloudEntityClient {
 
   async update(id: string, data: any) {
     if (!supabase) return null;
-    const { data: updated, error } = await supabase.from(this.table).update(data).eq('id', id).select().single();
+    // Remove campos que não devem ser atualizados ou que são somente leitura do front
+    const { id: _, created_date, ...updateData } = data; 
+    
+    const { data: updated, error } = await supabase.from(this.table).update(updateData).eq('id', id).select().single();
     if (error) throw error;
     return { ...updated, id: updated.id.toString() };
   }
@@ -212,10 +214,7 @@ class LocalEntityClient {
 // Factory para escolher o cliente correto
 const getClient = (entityName: string) => {
   if (USE_CLOUD) {
-    // Mapeamento de nomes de tabelas para o Supabase (recomendado minúsculo)
-    // Se as tabelas não existirem, o usuário precisará criar no painel do Supabase
-    // com colunas JSONB para facilitar ou colunas estruturadas.
-    // Para simplificar, assumimos que o usuário criou tabelas com os nomes abaixo:
+    // Mapeamento de nomes de tabelas para o Supabase (recomendado minúsculo e plural)
     const tableMap: any = {
       'Encomenda': 'encomendas',
       'Ocorrencia': 'ocorrencias',

@@ -336,9 +336,8 @@ export default function Visitantes() {
   };
 
   const handleDelete = (visitante: any) => {
-    if (window.confirm('Tem certeza que deseja excluir este registro?')) {
-      deleteMutation.mutate(visitante.id);
-    }
+    // A confirmação visual já é feita pelo componente DeleteAction
+    deleteMutation.mutate(visitante.id);
   };
 
   const filteredVisitantes = visitantes.filter((v: any) => {
@@ -419,16 +418,18 @@ export default function Visitantes() {
                 <Input
                   placeholder="Buscar por nome, documento, unidade ou morador..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  onChange={(e: any) => setSearchTerm(e.target.value)}
+                  className="pl-10 !text-black"
+                  style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
               </div>
               <div className="flex items-center gap-2">
                 <Input
                   type="date"
                   value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-auto"
+                  onChange={(e: any) => setDateFilter(e.target.value)}
+                  className="w-auto !text-black"
+                  style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
                 {dateFilter && (
                   <Button type="button" variant="ghost" size="icon" onClick={() => setDateFilter('')} title="Limpar data">

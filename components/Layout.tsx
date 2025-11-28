@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '../api/base44Client';
@@ -15,13 +16,16 @@ import {
   Building2,
   User,
   KeyRound,
-  ShieldAlert
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Popover, PopoverContent, PopoverTrigger } from './ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Popover, PopoverContent, PopoverTrigger, Input } from './ui';
 
 // --- Componente de Login/Início de Turno ---
 function ShiftLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [selectedFuncionario, setSelectedFuncionario] = useState('');
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState('');
   
   const { data: funcionarios = [], isLoading } = useQuery({
     queryKey: ['funcionarios'],
@@ -31,6 +35,11 @@ function ShiftLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const handleStartShift = async () => {
     if (!selectedFuncionario) return;
     
+    if (senha !== 'cond@30') {
+      setErro('Senha incorreta.');
+      return;
+    }
+
     const func = funcionarios.find((f: any) => f.id === selectedFuncionario);
     if (func) {
       await base44.auth.login(func.id, func.nome_completo);
@@ -62,27 +71,50 @@ function ShiftLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
             <>
               {funcionariosAtivos.length > 0 ? (
                 <>
-                  <div className="space-y-2">
-                    <Label>Quem está assumindo o posto?</Label>
-                    <Select value={selectedFuncionario} onValueChange={setSelectedFuncionario}>
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Selecione seu nome" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {funcionariosAtivos.map((f: any) => (
-                          <SelectItem key={f.id} value={f.id}>
-                            {f.nome_completo}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Quem está assumindo o posto?</Label>
+                      <Select value={selectedFuncionario} onValueChange={(val: any) => {
+                        setSelectedFuncionario(val);
+                        setErro('');
+                      }}>
+                        <SelectTrigger className="h-12">
+                          <SelectValue placeholder="Selecione seu nome" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {funcionariosAtivos.map((f: any) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.nome_completo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Senha de Acesso</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input 
+                          type="password" 
+                          placeholder="Digite a senha padrão"
+                          value={senha}
+                          onChange={(e: any) => {
+                            setSenha(e.target.value);
+                            setErro('');
+                          }}
+                          className="pl-10 h-12"
+                        />
+                      </div>
+                      {erro && <p className="text-red-600 text-sm font-medium animate-pulse">{erro}</p>}
+                    </div>
                   </div>
 
                   <Button 
                     type="button"
                     onClick={handleStartShift} 
-                    className="w-full h-12 text-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg"
-                    disabled={!selectedFuncionario}
+                    className="w-full h-12 text-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg mt-2"
+                    disabled={!selectedFuncionario || !senha}
                   >
                     <KeyRound className="mr-2 h-5 w-5" />
                     Iniciar Plantão

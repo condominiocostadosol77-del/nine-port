@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { base44 } from '../api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge, Tabs, TabsList, TabsTrigger, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, Popover, PopoverContent, PopoverTrigger } from '../components/ui';
-import { Plus, Search, Calendar, Clock, CheckCircle2, Download, Filter, X, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Calendar, Clock, CheckCircle2, Download, Filter, X, Save, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -47,6 +47,72 @@ function DeleteAction({ onConfirm }: { onConfirm: () => void }) {
           >
             Confirmar Exclusão
           </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// --- Clear All Action Component ---
+function ClearAllAction({ onConfirm, disabled, isClearing }: { onConfirm: () => void, disabled: boolean, isClearing: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="destructive"
+          className="gap-2"
+          disabled={disabled || isClearing}
+        >
+          {isClearing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Excluindo...
+            </>
+          ) : (
+            <>
+              <Trash2 className="h-4 w-4" /> Limpar Tudo
+            </>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 bottom-full mb-2" align="end">
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <h4 className="font-medium leading-none flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-4 w-4" /> Atenção: Exclusão em Massa
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              Tem certeza que deseja excluir <strong>TODOS</strong> os registros exibidos na lista?
+              <br/><br/>
+              <span className="font-bold">Esta ação não pode ser desfeita.</span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button 
+              type="button" 
+              variant="destructive" 
+              size="sm" 
+              className="w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                onConfirm();
+                setOpen(false);
+              }}
+            >
+              Sim, Excluir Tudo
+            </Button>
+            <Button 
+              type="button" 
+              variant="ghost" 
+              size="sm" 
+              className="w-full"
+              onClick={() => setOpen(false)}
+            >
+              Cancelar
+            </Button>
+          </div>
         </div>
       </PopoverContent>
     </Popover>
@@ -220,6 +286,7 @@ export default function FolhaPonto() {
   const [funcionarioFilter, setFuncionarioFilter] = useState('todos');
   const [showForm, setShowForm] = useState(false);
   const [editingRegistro, setEditingRegistro] = useState<any>(null);
+  const [isClearing, setIsClearing] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: registros = [], isLoading } = useQuery({
@@ -396,7 +463,8 @@ export default function FolhaPonto() {
   };
 
   const handleClearAll = async () => {
-    if (window.confirm('ATENÇÃO: Tem certeza que deseja excluir TODOS os registros de ponto exibidos? Esta ação não pode ser desfeita.')) {
+    setIsClearing(true);
+    try {
       const recordsToDelete = filteredRegistros;
       
       if (recordsToDelete.length === 0) {
@@ -404,12 +472,18 @@ export default function FolhaPonto() {
         return;
       }
 
+      // Executar deleções sequenciais
       for (const record of recordsToDelete) {
         await base44.entities.RegistroPonto.delete(record.id);
       }
       
-      queryClient.invalidateQueries({ queryKey: ['registros-ponto'] });
+      await queryClient.invalidateQueries({ queryKey: ['registros-ponto'] });
       alert(`${recordsToDelete.length} registros excluídos com sucesso.`);
+    } catch (error) {
+      console.error("Erro ao limpar registros:", error);
+      alert("Ocorreu um erro ao tentar excluir alguns registros.");
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -449,7 +523,7 @@ export default function FolhaPonto() {
                   placeholder="Buscar por funcionário ou observação..."
                   value={searchTerm}
                   onChange={(e: any) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-12 bg-white text-black border-slate-300 shadow-sm"
+                  className="pl-10 !text-black"
                   style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
               </div>
@@ -497,16 +571,11 @@ export default function FolhaPonto() {
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  onClick={handleClearAll}
-                  variant="destructive"
-                  className="gap-2"
+                <ClearAllAction 
+                  onConfirm={handleClearAll} 
                   disabled={filteredRegistros.length === 0}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Limpar Tudo
-                </Button>
+                  isClearing={isClearing}
+                />
                 <Button
                   type="button"
                   onClick={handleExportPDF}

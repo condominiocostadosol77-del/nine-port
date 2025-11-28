@@ -16,7 +16,10 @@ import {
   ChevronsUpDown,
   Trash2,
   AlertTriangle,
-  CalendarIcon
+  CalendarIcon,
+  ChevronDown,
+  ChevronUp,
+  Box
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -154,7 +157,7 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
     }
   };
 
-  // Lógica de filtro robusta para a busca (Nome, Unidade, Bloco)
+  // Lógica de filtro robusta
   const filteredMoradores = moradores?.filter((m: any) => {
     const searchLower = (searchQuery || "").toLowerCase();
     const nome = (m.nome_completo || "").toLowerCase();
@@ -224,7 +227,7 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
                       <Command>
                         <CommandInput 
                           autoFocus
-                          placeholder="Digite nome, unidade ou bloco..." 
+                          placeholder="Digite o nome, unidade ou bloco..." 
                           value={searchQuery}
                           onChange={(e: any) => setSearchQuery(e.target.value)}
                           onKeyDown={(e: any) => { if (e.key === 'Enter') e.preventDefault(); }}
@@ -426,6 +429,7 @@ export default function Encomendas() {
   const [statusFilter, setStatusFilter] = useState('todos');
   const [showForm, setShowForm] = useState(false);
   const [editingEncomenda, setEditingEncomenda] = useState<any>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
 
   const { data: encomendas = [], isLoading } = useQuery({
@@ -451,10 +455,13 @@ export default function Encomendas() {
   const encomendasPendentes = encomendas.filter((e: any) => e.status === 'aguardando_retirada').length;
   const encomendasRetiradas = encomendas.filter((e: any) => e.status === 'retirada').length;
 
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const enviarWhatsApp = (encomenda: any, morador: any) => {
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
-    // Buscar todos os moradores da mesma unidade e bloco se não houver morador específico
     let destinatarios = [];
     if (morador) {
       destinatarios = [morador];
@@ -559,7 +566,7 @@ _Equipe da Portaria_`;
     const moradorNome = getMoradorNome(e)?.toLowerCase() || '';
     const searchLower = searchTerm.toLowerCase();
     
-    // Date filter logic
+    // Date filter
     let dateMatch = true;
     if (dateFilter) {
       const itemDate = e.data_hora_recebimento || e.created_date;
@@ -580,6 +587,24 @@ _Equipe da Portaria_`;
     const matchStatus = statusFilter === 'todos' || e.status === statusFilter;
     return matchSearch && matchStatus && dateMatch;
   });
+
+  // Agrupamento para a aba 'aguardando_retirada'
+  const groupedPending = React.useMemo(() => {
+    if (statusFilter !== 'aguardando_retirada') return {};
+    
+    return filteredEncomendas.reduce((acc: any, curr: any) => {
+      const key = `${curr.unidade}-${curr.bloco || ''}`;
+      if (!acc[key]) {
+        acc[key] = {
+          unidade: curr.unidade,
+          bloco: curr.bloco,
+          items: []
+        };
+      }
+      acc[key].items.push(curr);
+      return acc;
+    }, {});
+  }, [filteredEncomendas, statusFilter]);
 
   const getStatusBadge = (status: string) => {
     const configs: any = {
@@ -647,16 +672,18 @@ _Equipe da Portaria_`;
                 <Input
                   placeholder="Buscar por nome, unidade, bloco, remetente..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  onChange={(e: any) => setSearchTerm(e.target.value)}
+                  className="pl-10 !text-black"
+                  style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
               </div>
               <div className="flex items-center gap-2">
                 <Input
                   type="date"
                   value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-auto"
+                  onChange={(e: any) => setDateFilter(e.target.value)}
+                  className="w-auto !text-black"
+                  style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
                 {dateFilter && (
                   <Button type="button" variant="ghost" size="icon" onClick={() => setDateFilter('')} title="Limpar data">
@@ -729,12 +756,83 @@ _Equipe da Portaria_`;
             <Package className="h-12 w-12 mx-auto text-slate-300 mb-3" />
             <p className="text-slate-500">Nenhuma encomenda encontrada {dateFilter ? 'nesta data' : ''}</p>
           </Card>
+        ) : statusFilter === 'aguardando_retirada' ? (
+          // Renderização Agrupada para Pendentes
+          Object.entries(groupedPending).map(([key, group]: [string, any]) => {
+            const isExpanded = expandedGroups[key];
+            
+            return (
+              <Card 
+                key={key} 
+                className="border-0 shadow-sm bg-white hover:shadow-md transition-all border-l-4 border-l-purple-500"
+              >
+                <div 
+                  className="p-4 flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleGroup(key)}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="bg-purple-100 p-2 rounded-lg">
+                      <Box className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">
+                        Unidade {group.unidade} {group.bloco && `- Bloco ${group.bloco}`}
+                      </h3>
+                      <p className="text-sm text-slate-600">
+                        {group.items.length} {group.items.length === 1 ? 'pacote pendente' : 'pacotes pendentes'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200">
+                      Aguardando Retirada
+                    </Badge>
+                    {isExpanded ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {group.items.map((encomenda: any) => (
+                      <div key={encomenda.id} className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
+                        <div className="flex flex-col md:flex-row gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-semibold text-slate-900">{encomenda.tipo.toUpperCase()}</p>
+                                <p className="text-sm text-slate-600">Remetente: {encomenda.remetente || encomenda.empresa_nome || 'N/A'}</p>
+                                {encomenda.descricao && (
+                                  <p className="text-xs text-slate-500 mt-1 italic">{encomenda.descricao}</p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-slate-500">
+                                  {format(new Date(encomenda.data_hora_recebimento), 'dd/MM HH:mm')}
+                                </p>
+                                {encomenda.codigo_retirada && (
+                                  <p className="font-mono font-bold text-blue-600 mt-1">{encomenda.codigo_retirada}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 md:border-l md:pl-4 border-slate-100">
+                             <RetiradaAction encomanda={encomenda} onConfirm={registrarRetirada} />
+                             <DeleteAction onConfirm={() => deleteMutation.mutate(encomenda.id)} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            );
+          })
         ) : (
+          // Renderização Padrão para Todos/Retirados
           filteredEncomendas.map((encomenda: any) => (
             <Card key={encomenda.id} className="border-0 shadow-lg hover:shadow-xl transition-all bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
                 <div className="flex flex-col lg:flex-row gap-6">
-                  {/* Ícone/Foto */}
                   <div className="flex-shrink-0">
                     <div className={`h-24 w-24 rounded-xl flex items-center justify-center ${
                       encomenda.tipo === 'correspondencia' || encomenda.tipo === 'documento' 
@@ -745,7 +843,6 @@ _Equipe da Portaria_`;
                     </div>
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                       <div>
