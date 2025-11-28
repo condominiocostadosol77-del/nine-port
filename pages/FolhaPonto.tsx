@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { base44 } from '../api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -463,6 +462,7 @@ export default function FolhaPonto() {
   };
 
   const handleClearAll = async () => {
+    // A confirmação visual é feita pelo ClearAllAction
     setIsClearing(true);
     try {
       const recordsToDelete = filteredRegistros;
@@ -478,7 +478,7 @@ export default function FolhaPonto() {
       }
       
       await queryClient.invalidateQueries({ queryKey: ['registros-ponto'] });
-      alert(`${recordsToDelete.length} registros excluídos com sucesso.`);
+      // Removido alert simples de sucesso para não interromper fluxo visual, ou poderia ser um toast
     } catch (error) {
       console.error("Erro ao limpar registros:", error);
       alert("Ocorreu um erro ao tentar excluir alguns registros.");

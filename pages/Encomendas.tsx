@@ -19,7 +19,8 @@ import {
   CalendarIcon,
   ChevronDown,
   ChevronUp,
-  Box
+  Box,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -126,24 +127,27 @@ function DeleteAction({ onConfirm }: { onConfirm: () => void }) {
 }
 
 // --- Encomenda Form ---
-function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: any) {
+function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel, isSubmitting }: any) {
   const [formData, setFormData] = useState(encomenda || {
     morador_id: '',
     unidade: '',
     bloco: '',
     tipo: 'encomenda',
-    remetente: '',
+    remetente: '', // Manter no state para compatibilidade, mesmo que não usado no form manual
     empresa_id: '',
     empresa_nome: '',
     descricao: '',
     codigo_rastreio: '',
     observacoes: '',
     turno: 'diurno',
-    status: 'aguardando_retirada'
+    status: 'aguardando_retirada',
+    categoria_destinatario: 'morador',
+    nome_destinatario: ''
   });
   const [usarMoradorCadastrado, setUsarMoradorCadastrado] = useState(false);
   const [openMorador, setOpenMorador] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [shouldNotify, setShouldNotify] = useState(false);
 
   const handleMoradorChange = (moradorId: any) => {
     const morador = moradores.find((m: any) => m.id === moradorId);
@@ -167,6 +171,11 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
     return nome.includes(searchLower) || unidade.includes(searchLower) || bloco.includes(searchLower);
   });
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(formData, shouldNotify);
+  };
+
   return (
     <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm mb-6">
       <CardHeader className="border-b">
@@ -178,7 +187,7 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
         </div>
       </CardHeader>
       <CardContent className="p-6">
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit(formData, false); }} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <div className="flex items-center gap-4 mb-4">
@@ -205,7 +214,7 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
                 </label>
               </div>
 
-              {usarMoradorCadastrado && (
+              {usarMoradorCadastrado ? (
                 <div>
                   <Label>Morador</Label>
                   <Popover open={openMorador} onOpenChange={setOpenMorador}>
@@ -261,6 +270,36 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
                     </PopoverContent>
                   </Popover>
                 </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Quem é o destinatário?</Label>
+                    <Select 
+                      value={formData.categoria_destinatario || 'morador'} 
+                      onValueChange={(value: string) => setFormData({ ...formData, categoria_destinatario: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="morador">O Próprio Morador</SelectItem>
+                        <SelectItem value="parente">Parente</SelectItem>
+                        <SelectItem value="externo">Externo/Prestador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {formData.categoria_destinatario !== 'morador' && (
+                    <div>
+                      <Label>Nome do Destinatário</Label>
+                      <Input
+                        value={formData.nome_destinatario || ''}
+                        onChange={(e: any) => setFormData({ ...formData, nome_destinatario: e.target.value })}
+                        placeholder="Ex: João da Silva (Sobrinho)"
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -309,18 +348,8 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
               </Select>
             </div>
 
-            {!usarMoradorCadastrado && (
-              <div>
-                <Label htmlFor="remetente">Remetente</Label>
-                <Input
-                  id="remetente"
-                  value={formData.remetente}
-                  onChange={(e: any) => setFormData({ ...formData, remetente: e.target.value })}
-                  placeholder="Nome do remetente"
-                />
-              </div>
-            )}
-
+            {/* Campo Remetente removido no modo manual conforme solicitado */}
+            
             <div>
               <Label htmlFor="unidade">Unidade *</Label>
               <Input
@@ -394,23 +423,27 @@ function EncomendaForm({ encomenda, moradores, empresas, onSubmit, onCancel }: a
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
               Cancelar
             </Button>
             <Button 
-              type="button" 
-              onClick={() => onSubmit(formData, false)}
+              type="submit" 
+              onClick={() => setShouldNotify(false)}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+              disabled={isSubmitting}
             >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="h-4 w-4 mr-2" />
               {encomenda ? 'Salvar' : 'Cadastrar'}
             </Button>
             {!encomenda && (
               <Button 
-                type="button"
-                onClick={() => onSubmit(formData, true)}
+                type="submit"
+                onClick={() => setShouldNotify(true)}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                disabled={isSubmitting}
               >
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <Save className="h-4 w-4 mr-2" />
                 Cadastrar e Notificar
               </Button>
@@ -462,6 +495,7 @@ export default function Encomendas() {
   const enviarWhatsApp = (encomenda: any, morador: any) => {
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
+    // Buscar todos os moradores da mesma unidade e bloco se não houver morador específico
     let destinatarios = [];
     if (morador) {
       destinatarios = [morador];
@@ -491,7 +525,6 @@ Olá, ${m.nome_completo}! 👋
 *INFORMAÇÕES:*
 🏠 *Unidade:* ${encomenda.unidade}${encomenda.bloco ? ` - Bloco ${encomenda.bloco}` : ''}
 ${encomenda.empresa_nome ? `🏢 *Empresa:* ${encomenda.empresa_nome}` : ''}
-${encomenda.remetente ? `👤 *Remetente:* ${encomenda.remetente}` : ''}
 ${encomenda.descricao ? `📝 *Descrição:* ${encomenda.descricao}` : ''}
 ${encomenda.codigo_rastreio ? `🔢 *Código de Rastreio:* ${encomenda.codigo_rastreio}` : ''}
 ${encomenda.codigo_retirada ? `🎫 *Código de Retirada:* ${encomenda.codigo_retirada}` : ''}
@@ -509,9 +542,20 @@ _Equipe da Portaria_`;
 
   const createMutation = useMutation({
     mutationFn: (data: any) => {
+      // PREPARAÇÃO DOS DADOS PARA EVITAR ERRO DE SCHEMA
+      // Separa os campos que não existem na tabela
+      const { categoria_destinatario, nome_destinatario, ...validData } = data;
+      
+      // Constrói uma observação com os dados extras se houver nome manual
+      let obs = validData.observacoes || '';
+      if (nome_destinatario) {
+        obs = `Destinatário: ${nome_destinatario} (${categoria_destinatario === 'parente' ? 'Parente' : 'Externo'}).\n${obs}`;
+      }
+
       const codigoRetirada = Math.random().toString(36).substring(2, 8).toUpperCase();
       return base44.entities.Encomenda.create({
-        ...data,
+        ...validData,
+        observacoes: obs, // Salva os dados extras aqui
         codigo_retirada: codigoRetirada,
         data_hora_recebimento: new Date().toISOString()
       });
@@ -521,15 +565,32 @@ _Equipe da Portaria_`;
       setShowForm(false);
       setEditingEncomenda(null);
     },
+    onError: (error: any) => {
+      console.error(error);
+      alert('Erro ao cadastrar encomenda. Verifique a conexão com o banco de dados.');
+    }
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: any) => base44.entities.Encomenda.update(id, data),
+    mutationFn: ({ id, data }: any) => {
+      // Mesma lógica de sanitização para update
+      const { categoria_destinatario, nome_destinatario, ...validData } = data;
+      
+      // Não sobrescrevemos observações se não houver mudança explícita de destinatário
+      // mas como é edição, podemos assumir que o usuário viu o form.
+      // Simplificação: enviamos o que temos, mas garantimos que campos inválidos não vão.
+      
+      return base44.entities.Encomenda.update(id, validData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['encomendas'] });
       setShowForm(false);
       setEditingEncomenda(null);
     },
+    onError: (error: any) => {
+      console.error(error);
+      alert('Erro ao atualizar encomenda.');
+    }
   });
 
   const deleteMutation = useMutation({
@@ -582,6 +643,7 @@ _Equipe da Portaria_`;
                        e.remetente?.toLowerCase().includes(searchLower) ||
                        e.codigo_retirada?.toLowerCase().includes(searchLower) ||
                        e.bloco?.toLowerCase().includes(searchLower) ||
+                       e.observacoes?.toLowerCase().includes(searchLower) || // Buscar também em observações onde está o destinatário manual
                        moradorNome.includes(searchLower);
                        
     const matchStatus = statusFilter === 'todos' || e.status === statusFilter;
@@ -665,24 +727,23 @@ _Equipe da Portaria_`;
       {/* Filters */}
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
         <CardContent className="p-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" size={20} style={{ opacity: 1 }} />
-                <Input
-                  placeholder="Buscar por nome, unidade, bloco, remetente..."
-                  value={searchTerm}
-                  onChange={(e: any) => setSearchTerm(e.target.value)}
-                  className="pl-10 !text-black"
-                  style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
-                />
-              </div>
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" size={20} style={{ opacity: 1 }} />
+              <Input
+                placeholder="Buscar por nome, unidade, bloco, remetente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 !text-black"
+                style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
+              />
+            </div>
+            <div className="flex items-center gap-2">
                 <Input
                   type="date"
                   value={dateFilter}
                   onChange={(e: any) => setDateFilter(e.target.value)}
-                  className="w-auto !text-black"
+                  className="w-auto h-12 bg-white text-black border-slate-300 shadow-sm"
                   style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
                 {dateFilter && (
@@ -690,10 +751,9 @@ _Equipe da Portaria_`;
                     <X className="h-4 w-4" />
                   </Button>
                 )}
-              </div>
             </div>
             <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-              <TabsList className="bg-slate-100 w-full lg:w-auto overflow-x-auto">
+              <TabsList className="bg-slate-100">
                 <TabsTrigger value="todos" className="gap-2">
                   Todos
                   <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs">
@@ -724,6 +784,7 @@ _Equipe da Portaria_`;
           encomenda={editingEncomenda}
           moradores={moradores}
           empresas={empresas}
+          isSubmitting={createMutation.isPending || updateMutation.isPending}
           onSubmit={(data: any, notificar: boolean) => {
             if (editingEncomenda) {
               updateMutation.mutate({ id: editingEncomenda.id, data });
@@ -800,9 +861,18 @@ _Equipe da Portaria_`;
                             <div className="flex items-start justify-between">
                               <div>
                                 <p className="font-semibold text-slate-900">{encomenda.tipo.toUpperCase()}</p>
-                                <p className="text-sm text-slate-600">Remetente: {encomenda.remetente || encomenda.empresa_nome || 'N/A'}</p>
-                                {encomenda.descricao && (
-                                  <p className="text-xs text-slate-500 mt-1 italic">{encomenda.descricao}</p>
+                                <div className="space-y-1 mt-1">
+                                  {(getMoradorNome(encomenda) || (encomenda.observacoes && encomenda.observacoes.includes('Destinatário:'))) && (
+                                    <p className="text-sm text-slate-900 font-medium">
+                                      <span className="text-slate-500 font-normal">Destinatário:</span> {getMoradorNome(encomenda) || 'Ver Observações'}
+                                    </p>
+                                  )}
+                                  <p className="text-sm text-slate-900 font-medium">
+                                    <span className="text-slate-500 font-normal">Empresa:</span> {encomenda.empresa_nome || encomenda.remetente || 'Não informado'}
+                                  </p>
+                                </div>
+                                {encomenda.observacoes && (
+                                  <p className="text-xs text-slate-500 mt-1 italic">{encomenda.observacoes}</p>
                                 )}
                               </div>
                               <div className="text-right">
@@ -833,6 +903,7 @@ _Equipe da Portaria_`;
             <Card key={encomenda.id} className="border-0 shadow-lg hover:shadow-xl transition-all bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
                 <div className="flex flex-col lg:flex-row gap-6">
+                  {/* Ícone/Foto */}
                   <div className="flex-shrink-0">
                     <div className={`h-24 w-24 rounded-xl flex items-center justify-center ${
                       encomenda.tipo === 'correspondencia' || encomenda.tipo === 'documento' 
@@ -852,8 +923,8 @@ _Equipe da Portaria_`;
                         {getMoradorNome(encomenda) && (
                           <p className="text-slate-700 font-medium">Morador: {getMoradorNome(encomenda)}</p>
                         )}
-                        {encomenda.remetente && (
-                          <p className="text-slate-600">Remetente: {encomenda.remetente}</p>
+                        {(encomenda.empresa_nome || encomenda.remetente) && (
+                          <p className="text-slate-600">Empresa: {encomenda.empresa_nome || encomenda.remetente}</p>
                         )}
                       </div>
                       {getStatusBadge(encomenda.status)}
@@ -890,9 +961,9 @@ _Equipe da Portaria_`;
                       )}
                     </div>
 
-                    {encomenda.descricao && (
+                    {encomenda.observacoes && (
                       <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
-                        {encomenda.descricao}
+                        {encomenda.observacoes}
                       </p>
                     )}
 

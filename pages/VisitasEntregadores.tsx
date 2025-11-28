@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { base44 } from '../api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -343,9 +342,8 @@ export default function VisitasEntregadores() {
   };
 
   const handleDelete = (visita: any) => {
-    if (window.confirm('Tem certeza que deseja excluir esta visita?')) {
-      deleteMutation.mutate(visita.id);
-    }
+    // A confirmação visual já é feita pelo componente DeleteAction
+    deleteMutation.mutate(visita.id);
   };
 
   const totalEncomendas = filteredVisitas.reduce((acc: any, v: any) => acc + (v.quantidade_encomendas || 0), 0);
@@ -415,16 +413,18 @@ export default function VisitasEntregadores() {
                 <Input
                   placeholder="Buscar por entregador, empresa ou documento..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  onChange={(e: any) => setSearchTerm(e.target.value)}
+                  className="pl-10 !text-black"
+                  style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
               </div>
               <div className="flex items-center gap-2">
                 <Input
                   type="date"
                   value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-auto"
+                  onChange={(e: any) => setDateFilter(e.target.value)}
+                  className="w-auto h-12 bg-white text-black border-slate-300 shadow-sm"
+                  style={{ backgroundColor: 'white', color: 'black', height: '40px', opacity: 1 }}
                 />
                 {dateFilter && (
                   <Button type="button" variant="ghost" size="icon" onClick={() => setDateFilter('')} title="Limpar data">
